@@ -2,6 +2,7 @@ import express from 'express';
 import http from 'http';
 import { Server, Socket } from 'socket.io';
 import cors from 'cors';
+import { v4 as uuidv4} from 'uuid'
 
 const app = express();
 const server = http.createServer(app);
@@ -26,15 +27,15 @@ const waitingQueue: Socket[] = [];
 const activeRooms = new Map<string, Room>();
 
 function createRoom(user1: string, user2: string): string {
-  const roomId = Math.random().toString(36).substring(7);
+  const roomId = uuidv4(); // UUID로 고유한 roomId 생성
   activeRooms.set(roomId, { users: [user1, user2] });
   return roomId;
 }
 
 function findMatch(socket: Socket): void {
-  if (waitingQueue.length > 0) {
-    // 랜덤성 추가: 50% 확률로 매칭
-    if (Math.random() < 0.5) {
+  const isAlreadyInQueue = waitingQueue.some((s) => s.id === socket.id);
+  if (!isAlreadyInQueue) {
+    if (waitingQueue.length > 0) {
       const partner = waitingQueue.shift();
       if (partner) {
         const roomId = createRoom(socket.id, partner.id);
@@ -45,8 +46,6 @@ function findMatch(socket: Socket): void {
     } else {
       waitingQueue.push(socket);
     }
-  } else {
-    waitingQueue.push(socket);
   }
 }
 
@@ -65,30 +64,49 @@ io.on('connection', (socket: Socket) => {
   });
 
   socket.on('offer', ({ offer, roomId }) => {
+  try {
     socket.to(roomId).emit('offer', { offer, from: socket.id });
-  });
+  } catch (error) {
+    console.error(`Error handling offer for room ${roomId}:`, error);
+  }
+});
 
-  socket.on('answer', ({ answer, roomId }) => {
+socket.on('answer', ({ answer, roomId }) => {
+  try {
     socket.to(roomId).emit('answer', { answer, from: socket.id });
-  });
+  } catch (error) {
+    console.error(`Error handling answer for room ${roomId}:`, error);
+  }
+});
 
-  socket.on('iceCandidate', ({ candidate, roomId }) => {
+socket.on('iceCandidate', ({ candidate, roomId }) => {
+  try {
     socket.to(roomId).emit('iceCandidate', { candidate, from: socket.id });
-  });
+  } catch (error) {
+    console.error(`Error handling ICE candidate for room ${roomId}:`, error);
+  }
+});
 
   socket.on('disconnect', () => {
-    console.log('Client disconnected');
-    const index = waitingQueue.findIndex(s => s.id === socket.id);
-    if (index !== -1) {
-      waitingQueue.splice(index, 1);
-    }
-    activeRooms.forEach((room, roomId) => {
-      if (room.users.includes(socket.id)) {
+  console.log('Client disconnected');
+
+  // 대기열에서 사용자 제거
+  const waitingIndex = waitingQueue.findIndex(s => s.id === socket.id);
+  if (waitingIndex !== -1) {
+    waitingQueue.splice(waitingIndex, 1);
+  }
+
+  // 방에서 사용자 제거
+  activeRooms.forEach((room, roomId) => {
+    if (room.users.includes(socket.id)) {
+      const remainingUser = room.users.find(user => user !== socket.id);
+      if (remainingUser) {
         io.to(roomId).emit('partnerDisconnected');
-        activeRooms.delete(roomId);
       }
-    });
+      activeRooms.delete(roomId); // 방 삭제
+    }
   });
+});
 });
 
 const PORT = process.env.PORT || 3000;
