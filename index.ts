@@ -1,21 +1,28 @@
-import express from 'express';
-import http from 'http';
-import { Server, Socket } from 'socket.io';
-import cors from 'cors';
-import { v4 as uuidv4} from 'uuid'
+import express from "express";
+import http from "http";
+import { Server, Socket } from "socket.io";
+import cors from "cors";
+import { v4 as uuidv4 } from "uuid";
+import { instrument } from "@socket.io/admin-ui";
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: [
-      "https://toktok-web.mcv.kr",
-      "http://localhost:5173"
-    ],
+    origin: ["https://toktok-web.mcv.kr", "http://localhost:5173"],
     methods: ["GET", "POST"],
-    credentials: true
-  }
+    credentials: true,
+  },
+  transports: ['websocket']
 });
+
+instrument(io, {
+  auth: {
+    type: "basic",
+    username: "admin",
+    password: "admin"
+  },
+})
 
 app.use(cors());
 
@@ -41,7 +48,7 @@ function findMatch(socket: Socket): void {
         const roomId = createRoom(socket.id, partner.id);
         socket.join(roomId);
         partner.join(roomId);
-        io.to(roomId).emit('matched', { roomId });
+        io.to(roomId).emit("matched", { roomId });
       }
     } else {
       waitingQueue.push(socket);
@@ -49,67 +56,67 @@ function findMatch(socket: Socket): void {
   }
 }
 
-io.on('connection', (socket: Socket) => {
-  console.log('New client connected');
+io.on("connection", (socket: Socket) => {
+  console.log("New client connected");
 
-  socket.on('joinQueue', () => {
+  socket.on("joinQueue", () => {
     findMatch(socket);
   });
 
-  socket.on('leaveQueue', () => {
-    const index = waitingQueue.findIndex(s => s.id === socket.id);
+  socket.on("leaveQueue", () => {
+    const index = waitingQueue.findIndex((s) => s.id === socket.id);
     if (index !== -1) {
       waitingQueue.splice(index, 1);
     }
   });
 
-  socket.on('offer', ({ offer, roomId }) => {
-  try {
-    console.log('Emit Offer')
-    socket.to(roomId).emit('offer', { offer, from: socket.id });
-  } catch (error) {
-    console.error(`Error handling offer for room ${roomId}:`, error);
-  }
-});
-
-socket.on('answer', ({ answer, roomId }) => {
-  try {
-    console.log('Emit Answer')
-    socket.to(roomId).emit('answer', { answer, from: socket.id });
-  } catch (error) {
-    console.error(`Error handling answer for room ${roomId}:`, error);
-  }
-});
-
-socket.on('iceCandidate', ({ candidate, roomId }) => {
-  try {
-    console.log('Emit IceCandidate')
-    socket.to(roomId).emit('iceCandidate', { candidate, from: socket.id });
-  } catch (error) {
-    console.error(`Error handling ICE candidate for room ${roomId}:`, error);
-  }
-});
-
-  socket.on('disconnect', () => {
-  console.log('Client disconnected');
-
-  // 대기열에서 사용자 제거
-  const waitingIndex = waitingQueue.findIndex(s => s.id === socket.id);
-  if (waitingIndex !== -1) {
-    waitingQueue.splice(waitingIndex, 1);
-  }
-
-  // 방에서 사용자 제거
-  activeRooms.forEach((room, roomId) => {
-    if (room.users.includes(socket.id)) {
-      const remainingUser = room.users.find(user => user !== socket.id);
-      if (remainingUser) {
-        io.to(roomId).emit('partnerDisconnected');
-      }
-      activeRooms.delete(roomId); // 방 삭제
+  socket.on("offer", ({ offer, roomId }) => {
+    try {
+      console.log("Emit Offer");
+      socket.to(roomId).emit("offer", { offer, from: socket.id });
+    } catch (error) {
+      console.error(`Error handling offer for room ${roomId}:`, error);
     }
   });
-});
+
+  socket.on("answer", ({ answer, roomId }) => {
+    try {
+      console.log("Emit Answer");
+      socket.to(roomId).emit("answer", { answer, from: socket.id });
+    } catch (error) {
+      console.error(`Error handling answer for room ${roomId}:`, error);
+    }
+  });
+
+  socket.on("iceCandidate", ({ candidate, roomId }) => {
+    try {
+      console.log("Emit IceCandidate");
+      socket.to(roomId).emit("iceCandidate", { candidate, from: socket.id });
+    } catch (error) {
+      console.error(`Error handling ICE candidate for room ${roomId}:`, error);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected");
+
+    // 대기열에서 사용자 제거
+    const waitingIndex = waitingQueue.findIndex((s) => s.id === socket.id);
+    if (waitingIndex !== -1) {
+      waitingQueue.splice(waitingIndex, 1);
+    }
+
+    // 방에서 사용자 제거
+    activeRooms.forEach((room, roomId) => {
+      if (room.users.includes(socket.id)) {
+        const remainingUser = room.users.find((user) => user !== socket.id);
+        if (remainingUser) {
+          io.to(roomId).emit("partnerDisconnected");
+        }
+        activeRooms.delete(roomId); // 방 삭제
+      }
+    });
+  });
 });
 
 const PORT = process.env.PORT || 3000;
