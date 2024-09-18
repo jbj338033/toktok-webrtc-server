@@ -3,7 +3,6 @@ import http from "http";
 import { Server, Socket } from "socket.io";
 import cors from "cors";
 import { v4 as uuidv4 } from "uuid";
-import { instrument } from "@socket.io/admin-ui";
 
 const app = express();
 const server = http.createServer(app);
@@ -15,14 +14,6 @@ const io = new Server(server, {
   },
   transports: ['websocket']
 });
-
-instrument(io, {
-  auth: {
-    type: "basic",
-    username: "admin",
-    password: "admin"
-  },
-})
 
 app.use(cors());
 
