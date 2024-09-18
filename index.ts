@@ -65,6 +65,7 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('offer', ({ offer, roomId }) => {
   try {
+    console.log('Emit Offer')
     socket.to(roomId).emit('offer', { offer, from: socket.id });
   } catch (error) {
     console.error(`Error handling offer for room ${roomId}:`, error);
@@ -73,6 +74,7 @@ io.on('connection', (socket: Socket) => {
 
 socket.on('answer', ({ answer, roomId }) => {
   try {
+    console.log('Emit Answer')
     socket.to(roomId).emit('answer', { answer, from: socket.id });
   } catch (error) {
     console.error(`Error handling answer for room ${roomId}:`, error);
@@ -81,6 +83,7 @@ socket.on('answer', ({ answer, roomId }) => {
 
 socket.on('iceCandidate', ({ candidate, roomId }) => {
   try {
+    console.log('Emit IceCandidate')
     socket.to(roomId).emit('iceCandidate', { candidate, from: socket.id });
   } catch (error) {
     console.error(`Error handling ICE candidate for room ${roomId}:`, error);
